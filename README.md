@@ -1,35 +1,54 @@
 # SignalDesk | AI Sales Outreach
 
-SignalDesk is a recruiter-ready product demo for an AI-assisted sales outreach workspace. It helps a sales team organize lead context, draft personalized email and SMS outreach, track message activity, and decide what to do next.
+SignalDesk is an AI-assisted outbound workspace for importing lead context, drafting personalized outreach, tracking engagement, and recommending a human-reviewed next step.
 
-## Demo
+## Stack
 
-The app opens to a sample workspace with leads, campaigns, engagement analytics, and next-step recommendations. All interactions work in the browser:
+- React 19, TypeScript, Vite, Tailwind CSS, and Lucide icons
+- FastAPI, Pydantic, SQLAlchemy, and Alembic
+- PostgreSQL 16 for shared application data
+- OpenAI chat completions when `OPENAI_API_KEY` is configured; validated local draft and summary fallbacks otherwise
+- Docker Compose for local full-stack development; GitHub Pages for the public static demo
 
-- Import leads from CSV or add them manually.
-- Generate three editable email or SMS options from lead context, goal, and tone.
-- Organize outreach in campaigns and mark drafts as sent.
-- Log a reply and get a locally generated summary and suggested next action.
-- Review campaign and channel engagement in the dashboard and analytics views.
+## Features
 
-Changes are saved in browser `localStorage`. The sample workspace is shared only by that browser profile; there is no account or server-side database.
+- CSV import with header validation, duplicate-email handling, and a 5 MB/1,000-row API limit; manual lead create/edit
+- Campaign creation with audience, channel, and goal
+- Three personalized email or SMS variants with four tones; drafts remain editable and require review
+- Message history, send/open/click/reply events, and reply summaries with suggested next actions
+- Analytics for tracked open, click, and reply rates plus campaign engagement
+- Request timing logs, response-time headers, generation rate limiting, and server-side API key handling
 
-## Run locally
+## Run the full stack
 
-Open `index.html` in a browser, or serve the repository root with any static web server. For example:
+Requirements: Docker Engine and Docker Compose.
 
 ```bash
-python3 -m http.server 8000
+cp .env.example .env
+docker compose up --build
 ```
 
-Then visit `http://localhost:8000`.
+Open `http://localhost:8001` for the app and `http://localhost:8001/docs` for the API reference. PostgreSQL data is kept in the `signaldesk-postgres` Docker volume. The backend applies Alembic migrations before startup and seeds a small sample workspace into an empty database.
 
-## Publish with GitHub Pages
+To use OpenAI drafts, add your key to `.env` as `OPENAI_API_KEY=...` and restart the app service. The key remains on the server; it is never included in the frontend build. Without a key, the API reports `model: local-demo` and generates deterministic drafts. Message sends are log-only and never deliver email or SMS.
 
-The repository includes a GitHub Actions workflow that deploys the static app on every push to `main` and on manual workflow dispatch. In the repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**. Once the workflow completes, GitHub Pages provides a stable URL at:
+## Run tests
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r backend/requirements.txt
+PYTHONPATH=backend .venv/bin/pytest -q backend/tests
+cd frontend && npm ci && npm run build && npm run lint
+```
+
+## Public hosting
+
+The GitHub Actions workflow builds `frontend/` and publishes the static bundle to:
 
 `https://sheyannemassey-ops.github.io/AI-Sales-Outreach-Agent/`
 
-## Demo boundaries
+GitHub Pages cannot run FastAPI or PostgreSQL. The public Pages app therefore stays in browser-local demo mode until a backend is deployed. `render.yaml` describes a Render web service plus PostgreSQL database. After deploying it, add a GitHub Actions repository variable named `VITE_API_URL` with the Render service URL and rerun the Pages workflow to connect the frontend to shared data. Set `CORS_ORIGINS` on the backend to `https://sheyannemassey-ops.github.io`.
 
-Message generation and response summaries are deterministic, local demo behaviors; no external LLM is called and no email or SMS is delivered. Lead and engagement data are sample data and browser-local. This prototype focuses on the end-to-end product workflow and does not yet include authentication, a FastAPI service, or PostgreSQL. Those are the next steps for a production deployment with shared data and live model integrations.
+## Current demo boundaries
+
+There is no authentication/authorization yet, and any publicly exposed API would allow workspace writes. Configure API access controls before using real customer data. Open/click/reply status is recorded through the API or manually; there is no email/SMS provider, webhook ingestion, automatic scheduler, or background send worker. Reply summarization currently uses deterministic intent rules; generation can use OpenAI when configured. No external message is ever sent automatically.
